@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  krea-proxy:
+    build: .
+    container_name: krea-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certificates
+      - ./ssl:/etc/letsencrypt
+      # Logs
+      - ./logs:/var/log/nginx
+      # Configuration backups
+      - ./backups:/etc/nginx/backup
+    environment:
+      - NGINX_HOST=krea.acm-ai.ru
+      - NGINX_PORT=443
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Certbot for SSL certificate management
+  certbot:
+    image: certbot/certbot
+    container_name: krea-certbot
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - ./logs:/var/log/letsencrypt
+    command: certonly --webroot --webroot-path=/var/www/html --email admin@acm-ai.ru --agree-tos --no-eff-email -d krea.acm-ai.ru
+    depends_on:
+      - krea-proxy
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    driver: bridge
+
+volumes:
+  ssl:
+  logs:
+  backups: 
