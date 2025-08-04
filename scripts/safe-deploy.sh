@@ -38,32 +38,43 @@ if [[ -f "/etc/nginx/nginx.conf" ]]; then
     echo -e "${GREEN}✅ Existing nginx.conf backed up to $BACKUP_DIR${NC}"
 fi
 
-# Check if OpenResty is installed
-echo -e "${BLUE}🔍 Checking OpenResty installation...${NC}"
-if ! command -v openresty &> /dev/null; then
-    echo -e "${YELLOW}⚠️  OpenResty not found. Installing...${NC}"
+# Check if NGINX with Lua is available
+echo -e "${BLUE}🔍 Checking NGINX with Lua support...${NC}"
+
+# Check if nginx is installed and has Lua support
+if command -v nginx &> /dev/null; then
+    echo -e "${GREEN}✅ NGINX is installed${NC}"
     
-    if command -v apt-get &> /dev/null; then
-        # Ubuntu/Debian
-        echo "Installing OpenResty on Ubuntu/Debian..."
-        wget -qO - https://openresty.org/package/pubkey.gpg | apt-key add -
-        echo "deb http://openresty.org/package/ubuntu $(lsb_release -sc) openresty" | tee /etc/apt/sources.list.d/openresty.list
-        apt-get update
-        apt-get install -y openresty
-        
-    elif command -v yum &> /dev/null; then
-        # CentOS/RHEL
-        echo "Installing OpenResty on CentOS/RHEL..."
-        yum install -y yum-utils
-        yum-config-manager --add-repo https://openresty.org/package/centos/openresty.repo
-        yum install -y openresty
-        
+    # Check if Lua module is available
+    if nginx -V 2>&1 | grep -q "lua"; then
+        echo -e "${GREEN}✅ NGINX has Lua support${NC}"
+        NGINX_WITH_LUA=true
+    elif dpkg -l | grep -q "libnginx-mod-http-lua"; then
+        echo -e "${GREEN}✅ Lua module is installed for NGINX${NC}"
+        NGINX_WITH_LUA=true
     else
-        echo -e "${RED}❌ Unsupported OS. Please install OpenResty manually.${NC}"
-        exit 1
+        echo -e "${YELLOW}⚠️  NGINX found but Lua support not detected${NC}"
+        echo -e "${BLUE}📦 Installing Lua module for NGINX...${NC}"
+        
+        # Install Lua module for nginx
+        apt-get update
+        apt-get install -y libnginx-mod-http-lua
+        
+        # Restart nginx to load the module
+        systemctl restart nginx
+        
+        # Check again
+        if nginx -V 2>&1 | grep -q "lua" || dpkg -l | grep -q "libnginx-mod-http-lua"; then
+            echo -e "${GREEN}✅ Lua module installed successfully${NC}"
+            NGINX_WITH_LUA=true
+        else
+            echo -e "${RED}❌ Failed to install Lua support${NC}"
+            exit 1
+        fi
     fi
 else
-    echo -e "${GREEN}✅ OpenResty is already installed${NC}"
+    echo -e "${RED}❌ NGINX not found. Please install nginx-extras first.${NC}"
+    exit 1
 fi
 
 # Create directories for Krea.ai proxy
