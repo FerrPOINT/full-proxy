@@ -89,7 +89,6 @@ cp lua/body_filter.lua /etc/nginx/lua/
 
 # Set permissions
 echo -e "${BLUE}🔐 Setting permissions...${NC}"
-chown -R nginx:nginx /etc/nginx/lua
 chmod 755 /etc/nginx/lua
 chmod 644 /etc/nginx/lua/*.lua
 
