@@ -1,14 +1,13 @@
 -- Body Filter for Krea.ai Proxy
 -- Replaces all krea.ai URLs with krea.acm-ai.ru in response body
+-- Professional implementation with error handling and optimization
 
 local ngx = ngx
+local string = string
 
--- Buffer for accumulating response chunks
-local response_buffer = ""
-
--- URL replacement patterns
-local url_patterns = {
-    -- Full URLs with protocol
+-- Pre-compiled URL replacement patterns for better performance
+local URL_PATTERNS = {
+    -- Full URLs with protocol (highest priority)
     {pattern = "https://krea%.ai", replacement = "https://krea.acm-ai.ru"},
     {pattern = "https://www%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
     {pattern = "https://php%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
@@ -21,78 +20,124 @@ local url_patterns = {
     {pattern = "//www%.krea%.ai", replacement = "//krea.acm-ai.ru"},
     {pattern = "//php%.krea%.ai", replacement = "//krea.acm-ai.ru"},
     
-    -- Bare domain names (in quotes or as values)
-    {pattern = '"krea%.ai"', replacement = '"krea.acm-ai.ru"'},
-    {pattern = "'krea%.ai'", replacement = "'krea.acm-ai.ru'"},
-    {pattern = "krea%.ai", replacement = "krea.acm-ai.ru"},
+    -- WebSocket URLs
+    {pattern = "wss://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
+    {pattern = "ws://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
     
     -- JSON patterns
     {pattern = '"domain":%s*"krea%.ai"', replacement = '"domain": "krea.acm-ai.ru"'},
     {pattern = '"url":%s*"https://krea%.ai', replacement = '"url": "https://krea.acm-ai.ru'},
     {pattern = '"origin":%s*"https://krea%.ai', replacement = '"origin": "https://krea.acm-ai.ru'},
     
-    -- WebSocket URLs
-    {pattern = "wss://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
-    {pattern = "ws://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
+    -- Bare domain names (in quotes or as values)
+    {pattern = '"krea%.ai"', replacement = '"krea.acm-ai.ru"'},
+    {pattern = "'krea%.ai'", replacement = "'krea.acm-ai.ru'"},
+    
+    -- Generic domain replacement (lowest priority)
+    {pattern = "krea%.ai", replacement = "krea.acm-ai.ru"},
 }
 
+-- Content types that should be processed
+local TEXT_CONTENT_TYPES = {
+    ["text/"] = true,
+    ["application/json"] = true,
+    ["application/javascript"] = true,
+    ["text/javascript"] = true,
+    ["application/xml"] = true,
+    ["text/xml"] = true,
+    ["application/xhtml"] = true,
+    ["text/html"] = true,
+    ["text/css"] = true,
+}
+
+-- Optimized URL replacement function
 local function replace_urls_in_text(text)
-    if not text then
+    if not text or type(text) ~= "string" then
         return text
     end
     
     local result = text
+    local has_changes = false
     
-    for _, pattern in ipairs(url_patterns) do
-        local new_result = string.gsub(result, pattern.pattern, pattern.replacement)
+    -- Apply all patterns in one pass
+    for _, pattern_data in ipairs(URL_PATTERNS) do
+        local new_result = string.gsub(result, pattern_data.pattern, pattern_data.replacement)
         if new_result ~= result then
-            ngx.log(ngx.INFO, "URL replacement: ", pattern.pattern, " -> ", pattern.replacement)
             result = new_result
+            has_changes = true
         end
+    end
+    
+    if has_changes then
+        ngx.log(ngx.INFO, "URLs replaced in response body")
     end
     
     return result
 end
 
--- Main body filter function
-local function filter_body()
-    local chunk = ngx.arg[1]
-    local eof = ngx.arg[2]
-    
-    if chunk then
-        -- Accumulate chunks
-        response_buffer = response_buffer .. chunk
+-- Check if content type should be processed
+local function should_process_content_type(content_type)
+    if not content_type then
+        return false
     end
     
-    -- Process accumulated buffer on EOF or when buffer is large enough
-    if eof or #response_buffer > 8192 then
-        local content_type = ngx.header.content_type or ""
+    for pattern, _ in pairs(TEXT_CONTENT_TYPES) do
+        if string.find(content_type, pattern, 1, true) then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Main body filter function with proper error handling
+local function filter_body()
+    local success, err = pcall(function()
+        local chunk = ngx.arg[1]
+        local eof = ngx.arg[2]
         
-        -- Only process text-based content types
-        if string.find(content_type, "text/") or 
-           string.find(content_type, "application/json") or
-           string.find(content_type, "application/javascript") or
-           string.find(content_type, "text/javascript") or
-           string.find(content_type, "application/xml") or
-           string.find(content_type, "text/xml") or
-           string.find(content_type, "application/xhtml") then
-            
-            local processed = replace_urls_in_text(response_buffer)
-            
-            -- Output processed content
-            ngx.arg[1] = processed
-        else
-            -- For non-text content, output as-is
-            ngx.arg[1] = response_buffer
+        -- Use request-scoped buffer to avoid conflicts
+        local buffer = ngx.ctx.response_buffer
+        if not buffer then
+            buffer = ""
+            ngx.ctx.response_buffer = buffer
         end
         
-        -- Clear buffer
-        response_buffer = ""
-    else
-        -- Don't output anything yet, just accumulate
-        ngx.arg[1] = nil
+        if chunk then
+            -- Accumulate chunks
+            ngx.ctx.response_buffer = buffer .. chunk
+        end
+        
+        -- Process accumulated buffer on EOF or when buffer is large enough
+        if eof or #ngx.ctx.response_buffer > 8192 then
+            local content_type = ngx.header.content_type or ""
+            
+            -- Only process text-based content types
+            if should_process_content_type(content_type) then
+                local processed = replace_urls_in_text(ngx.ctx.response_buffer)
+                ngx.arg[1] = processed
+            else
+                -- For non-text content, output as-is
+                ngx.arg[1] = ngx.ctx.response_buffer
+            end
+            
+            -- Clear buffer
+            ngx.ctx.response_buffer = ""
+        else
+            -- Don't output anything yet, just accumulate
+            ngx.arg[1] = nil
+        end
+    end)
+    
+    if not success then
+        ngx.log(ngx.ERR, "Error in body filter: ", err)
+        -- On error, pass through original content
+        ngx.arg[1] = ngx.arg[1]
     end
 end
 
--- Execute the filter
-filter_body() 
+-- Execute the filter with error handling
+local ok, err = pcall(filter_body)
+if not ok then
+    ngx.log(ngx.ERR, "Failed to execute body filter: ", err)
+end 

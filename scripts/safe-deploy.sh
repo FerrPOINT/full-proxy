@@ -124,29 +124,6 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # Security headers
-    add_header X-Frame-Options "ALLOWALL" always;
-    add_header Content-Security-Policy "frame-ancestors *" always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    # CORS headers for iframe support
-    add_header Access-Control-Allow-Origin "*" always;
-    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
-    add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization" always;
-    add_header Access-Control-Allow-Credentials "true" always;
-
-    # Handle preflight requests
-    if ($request_method = 'OPTIONS') {
-        add_header Access-Control-Allow-Origin "*";
-        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
-        add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization";
-        add_header Access-Control-Allow-Credentials "true";
-        add_header Content-Length 0;
-        add_header Content-Type text/plain;
-        return 204;
-    }
-
     # Lua test endpoint
     location = /lua_test {
         content_by_lua_block {
@@ -251,6 +228,29 @@ server {
 
         # Remove Content-Length for body manipulation
         proxy_hide_header Content-Length;
+
+        # Security headers
+        add_header X-Frame-Options "ALLOWALL" always;
+        add_header Content-Security-Policy "frame-ancestors *" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # CORS headers for iframe support
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization" always;
+        add_header Access-Control-Allow-Credentials "true" always;
+
+        # Handle preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
+            add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization";
+            add_header Access-Control-Allow-Credentials "true";
+            add_header Content-Length 0;
+            add_header Content-Type text/plain;
+            return 204;
+        }
     }
 }
 EOF
