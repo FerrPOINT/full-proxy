@@ -44,6 +44,13 @@ fi
 # Function to check if target domain is accessible
 check_target_accessibility() {
     echo -e "${BLUE}🔍 Checking ${TARGET_DOMAIN} accessibility...${NC}"
+    
+    # Check if curl is available
+    if ! command -v curl &> /dev/null; then
+        echo -e "${YELLOW}⚠️  curl not found, skipping accessibility check${NC}"
+        return 0
+    fi
+    
     if curl -I https://${TARGET_DOMAIN} &>/dev/null; then
         echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible${NC}"
         return 0
@@ -62,17 +69,17 @@ check_target_accessibility() {
 
 # Function to remove existing krea configuration
 remove_existing_krea_config() {
-    echo -e "${BLUE}🧹 Cleaning up existing krea configuration...${NC}"
+    echo -e "${BLUE}🧹 Cleaning up existing ${PROXY_DOMAIN} configuration...${NC}"
     
     # Remove existing symlinks
-    if [[ -L "/etc/nginx/sites-enabled/krea.acm-ai.ru" ]]; then
-        rm -f /etc/nginx/sites-enabled/krea.acm-ai.ru
+    if [[ -L "/etc/nginx/sites-enabled/${PROXY_DOMAIN}" ]]; then
+        rm -f /etc/nginx/sites-enabled/${PROXY_DOMAIN}
         echo -e "${GREEN}✅ Removed existing symlink${NC}"
     fi
     
     # Remove existing config file
-    if [[ -f "/etc/nginx/sites-available/krea.acm-ai.ru" ]]; then
-        mv /etc/nginx/sites-available/krea.acm-ai.ru /etc/nginx/sites-available/krea.acm-ai.ru.backup
+    if [[ -f "/etc/nginx/sites-available/${PROXY_DOMAIN}" ]]; then
+        mv /etc/nginx/sites-available/${PROXY_DOMAIN} /etc/nginx/sites-available/${PROXY_DOMAIN}.backup
         echo -e "${GREEN}✅ Backed up existing config${NC}"
     fi
 }
@@ -80,10 +87,16 @@ remove_existing_krea_config() {
 # Backup existing configuration
 echo -e "${BLUE}💾 Creating backup of existing configuration...${NC}"
 BACKUP_DIR="/etc/nginx/backup_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$BACKUP_DIR"
+if ! mkdir -p "$BACKUP_DIR"; then
+    echo -e "${RED}❌ Failed to create backup directory${NC}"
+    exit 1
+fi
 
 if [[ -f "/etc/nginx/nginx.conf" ]]; then
-    cp /etc/nginx/nginx.conf "$BACKUP_DIR/"
+    if ! cp /etc/nginx/nginx.conf "$BACKUP_DIR/"; then
+        echo -e "${RED}❌ Failed to backup nginx.conf${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}✅ Existing nginx.conf backed up to $BACKUP_DIR${NC}"
 fi
 
@@ -106,11 +119,20 @@ if command -v nginx &> /dev/null; then
         echo -e "${BLUE}📦 Installing Lua module for NGINX...${NC}"
         
         # Install Lua module for nginx
-        apt-get update
-        apt-get install -y libnginx-mod-http-lua
+        if ! apt-get update; then
+            echo -e "${RED}❌ Failed to update package list${NC}"
+            exit 1
+        fi
+        if ! apt-get install -y libnginx-mod-http-lua; then
+            echo -e "${RED}❌ Failed to install Lua module${NC}"
+            exit 1
+        fi
         
         # Restart nginx to load the module
-        systemctl restart nginx
+        if ! systemctl restart nginx; then
+            echo -e "${RED}❌ Failed to restart nginx after Lua module installation${NC}"
+            exit 1
+        fi
         
         # Check again
         if nginx -V 2>&1 | grep -q "lua" || dpkg -l | grep -q "libnginx-mod-http-lua"; then
@@ -132,18 +154,40 @@ TARGET_ACCESSIBLE=$?
 
 # Create directories for Krea.ai proxy
 echo -e "${BLUE}📁 Creating directories for Krea.ai proxy...${NC}"
-mkdir -p /etc/nginx/lua
-mkdir -p /var/log/nginx
+if ! mkdir -p /etc/nginx/lua; then
+    echo -e "${RED}❌ Failed to create /etc/nginx/lua directory${NC}"
+    exit 1
+fi
+if ! mkdir -p /var/log/nginx; then
+    echo -e "${RED}❌ Failed to create /var/log/nginx directory${NC}"
+    exit 1
+fi
 
 # Copy Lua scripts
 echo -e "${BLUE}📋 Copying Lua scripts...${NC}"
-cp lua/cookie_filter.lua /etc/nginx/lua/
-cp lua/body_filter.lua /etc/nginx/lua/
+if [[ ! -f "lua/cookie_filter.lua" ]] || [[ ! -f "lua/body_filter.lua" ]]; then
+    echo -e "${RED}❌ Lua scripts not found. Please ensure lua/cookie_filter.lua and lua/body_filter.lua exist.${NC}"
+    exit 1
+fi
+if ! cp lua/cookie_filter.lua /etc/nginx/lua/; then
+    echo -e "${RED}❌ Failed to copy cookie_filter.lua${NC}"
+    exit 1
+fi
+if ! cp lua/body_filter.lua /etc/nginx/lua/; then
+    echo -e "${RED}❌ Failed to copy body_filter.lua${NC}"
+    exit 1
+fi
 
 # Set permissions
 echo -e "${BLUE}🔐 Setting permissions...${NC}"
-chmod 755 /etc/nginx/lua
-chmod 644 /etc/nginx/lua/*.lua
+if ! chmod 755 /etc/nginx/lua; then
+    echo -e "${RED}❌ Failed to set directory permissions${NC}"
+    exit 1
+fi
+if ! chmod 644 /etc/nginx/lua/*.lua; then
+    echo -e "${RED}❌ Failed to set file permissions${NC}"
+    exit 1
+fi
 
 # Remove existing krea configuration
 remove_existing_krea_config
@@ -155,7 +199,7 @@ echo -e "${BLUE}📝 Creating Krea.ai configuration...${NC}"
 PROXY_CONFIG="/etc/nginx/sites-available/${PROXY_DOMAIN}"
 
 # Create the Krea.ai server configuration with SSL fixes
-cat > "$PROXY_CONFIG" << 'EOF'
+if ! cat > "$PROXY_CONFIG" << 'EOF'
 # Dynamic Proxy Configuration
 # This file contains proxy settings
 
@@ -299,14 +343,27 @@ server {
     }
 }
 EOF
+then
+    echo -e "${RED}❌ Failed to create configuration file${NC}"
+    exit 1
+fi
 
 # Replace placeholders with actual values
-sed -i "s/TARGET_DOMAIN_PLACEHOLDER/${TARGET_DOMAIN}/g" "$PROXY_CONFIG"
-sed -i "s/PROXY_DOMAIN_PLACEHOLDER/${PROXY_DOMAIN}/g" "$PROXY_CONFIG"
+if ! sed -i "s/TARGET_DOMAIN_PLACEHOLDER/${TARGET_DOMAIN}/g" "$PROXY_CONFIG"; then
+    echo -e "${RED}❌ Failed to replace TARGET_DOMAIN placeholder${NC}"
+    exit 1
+fi
+if ! sed -i "s/PROXY_DOMAIN_PLACEHOLDER/${PROXY_DOMAIN}/g" "$PROXY_CONFIG"; then
+    echo -e "${RED}❌ Failed to replace PROXY_DOMAIN placeholder${NC}"
+    exit 1
+fi
 
 # Enable the site
 echo -e "${BLUE}🔗 Enabling ${PROXY_DOMAIN} site...${NC}"
-ln -sf "$PROXY_CONFIG" /etc/nginx/sites-enabled/
+if ! ln -sf "$PROXY_CONFIG" /etc/nginx/sites-enabled/; then
+    echo -e "${RED}❌ Failed to create symlink${NC}"
+    exit 1
+fi
 
 # Verify the symlink was created
 if [[ -L "/etc/nginx/sites-enabled/${PROXY_DOMAIN}" ]]; then
@@ -341,12 +398,13 @@ fi
 
 # Reload NGINX (not restart to preserve other sites)
 echo -e "${BLUE}🔄 Reloading NGINX configuration...${NC}"
-systemctl reload nginx
-
-# If reload fails, try restart
-if ! systemctl is-active --quiet nginx; then
+if ! systemctl reload nginx; then
     echo -e "${YELLOW}⚠️  Reload failed, trying restart...${NC}"
-    systemctl restart nginx
+    if ! systemctl restart nginx; then
+        echo -e "${RED}❌ Failed to reload/restart nginx${NC}"
+        echo "Backup is available in: $BACKUP_DIR"
+        exit 1
+    fi
 fi
 
 # Wait for reload
@@ -376,29 +434,39 @@ echo -e "${BLUE}🧪 Comprehensive testing...${NC}"
 
 # Test Lua functionality
 echo -e "${BLUE}🔍 Testing Lua functionality...${NC}"
-if curl -H "Host: ${PROXY_DOMAIN}" http://localhost/lua_test &>/dev/null; then
-    echo -e "${GREEN}✅ Lua test passed${NC}"
+if command -v curl &> /dev/null; then
+    if curl -H "Host: ${PROXY_DOMAIN}" http://localhost/lua_test &>/dev/null; then
+        echo -e "${GREEN}✅ Lua test passed${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Lua test failed (checking logs)${NC}"
+        if [[ -f "/var/log/nginx/error.log" ]]; then
+            tail -n 5 /var/log/nginx/error.log
+        fi
+    fi
 else
-    echo -e "${YELLOW}⚠️  Lua test failed (checking logs)${NC}"
-    sudo tail -n 5 /var/log/nginx/error.log
+    echo -e "${YELLOW}⚠️  curl not found, skipping Lua test${NC}"
 fi
 
 # Test proxy functionality
 echo -e "${BLUE}🔍 Testing proxy functionality...${NC}"
-PROXY_RESPONSE=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | head -1)
-if [[ "$PROXY_RESPONSE" == *"200"* ]] || [[ "$PROXY_RESPONSE" == *"301"* ]] || [[ "$PROXY_RESPONSE" == *"302"* ]]; then
-    echo -e "${GREEN}✅ Proxy test passed${NC}"
-else
-    echo -e "${YELLOW}⚠️  Proxy test failed (response: $PROXY_RESPONSE)${NC}"
-    echo "Testing ${TARGET_DOMAIN} accessibility..."
-    if curl -I https://${TARGET_DOMAIN} &>/dev/null; then
-        echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible${NC}"
-        echo -e "${YELLOW}⚠️  Checking NGINX configuration for ${PROXY_DOMAIN}...${NC}"
-        echo "Current server blocks:"
-        nginx -T | grep -A 5 -B 5 "${PROXY_DOMAIN}" || echo "No ${PROXY_DOMAIN} configuration found"
+if command -v curl &> /dev/null; then
+    PROXY_RESPONSE=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | head -1)
+    if [[ "$PROXY_RESPONSE" == *"200"* ]] || [[ "$PROXY_RESPONSE" == *"301"* ]] || [[ "$PROXY_RESPONSE" == *"302"* ]]; then
+        echo -e "${GREEN}✅ Proxy test passed${NC}"
     else
-        echo -e "${RED}❌ ${TARGET_DOMAIN} is not accessible${NC}"
+        echo -e "${YELLOW}⚠️  Proxy test failed (response: $PROXY_RESPONSE)${NC}"
+        echo "Testing ${TARGET_DOMAIN} accessibility..."
+        if curl -I https://${TARGET_DOMAIN} &>/dev/null; then
+            echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible${NC}"
+            echo -e "${YELLOW}⚠️  Checking NGINX configuration for ${PROXY_DOMAIN}...${NC}"
+            echo "Current server blocks:"
+            nginx -T | grep -A 5 -B 5 "${PROXY_DOMAIN}" || echo "No ${PROXY_DOMAIN} configuration found"
+        else
+            echo -e "${RED}❌ ${TARGET_DOMAIN} is not accessible${NC}"
+        fi
     fi
+else
+    echo -e "${YELLOW}⚠️  curl not found, skipping proxy test${NC}"
 fi
 
 # Test SSL certificate
