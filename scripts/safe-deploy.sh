@@ -233,11 +233,11 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Basic buffer settings for HTTP
+        # Basic buffer settings for HTTP - MAXIMUM FOR KREA.AI
         proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-        proxy_busy_buffers_size 8k;
+        proxy_buffer_size 1m;
+        proxy_buffers 16 1m;
+        proxy_busy_buffers_size 2m;
 
         # Timeouts
         proxy_connect_timeout 60s;
@@ -372,13 +372,13 @@ server {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
 
-        # Buffer settings for performance
+        # Buffer settings for performance - MAXIMUM FOR KREA.AI
         proxy_buffering on;
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
+        proxy_buffer_size 1m;
+        proxy_buffers 16 1m;
+        proxy_busy_buffers_size 2m;
         proxy_max_temp_file_size 0;
-        proxy_temp_file_write_size 256k;
+        proxy_temp_file_write_size 1m;
 
         # Disable compression for body filtering
         proxy_set_header Accept-Encoding "";
