@@ -160,14 +160,14 @@ cat > "$PROXY_CONFIG" << 'EOF'
 # This file contains proxy settings
 
 # Rate limiting for security
-limit_req_zone \$binary_remote_addr zone=krea_limit:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=10r/s;
 
 server {
     listen 80;
     server_name PROXY_DOMAIN_PLACEHOLDER;
     
     # Redirect HTTP to HTTPS
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 
 server {
@@ -175,8 +175,8 @@ server {
     server_name PROXY_DOMAIN_PLACEHOLDER;
 
     # Set variables for Lua scripts
-    set \$target_domain TARGET_DOMAIN_PLACEHOLDER;
-    set \$proxy_domain PROXY_DOMAIN_PLACEHOLDER;
+    set $target_domain TARGET_DOMAIN_PLACEHOLDER;
+    set $proxy_domain PROXY_DOMAIN_PLACEHOLDER;
 
     # SSL Configuration - Update paths if needed
     ssl_certificate /etc/letsencrypt/live/PROXY_DOMAIN_PLACEHOLDER/fullchain.pem;
@@ -224,15 +224,15 @@ server {
         # Proxy settings with fallback
         proxy_pass https://TARGET_DOMAIN_PLACEHOLDER;
         proxy_set_header Host TARGET_DOMAIN_PLACEHOLDER;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host PROXY_DOMAIN_PLACEHOLDER;
         proxy_set_header X-Forwarded-Server PROXY_DOMAIN_PLACEHOLDER;
 
         # WebSocket support
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
         # Timeouts
@@ -280,7 +280,7 @@ server {
         add_header Access-Control-Max-Age "86400" always;
 
         # Handle preflight requests
-        if (\$request_method = 'OPTIONS') {
+        if ($request_method = 'OPTIONS') {
             add_header Access-Control-Allow-Origin "*";
             add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, HEAD";
             add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control";
