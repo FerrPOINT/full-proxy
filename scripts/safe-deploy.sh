@@ -155,16 +155,16 @@ echo -e "${BLUE}📝 Creating Krea.ai configuration...${NC}"
 PROXY_CONFIG="/etc/nginx/sites-available/${PROXY_DOMAIN}"
 
 # Create the Krea.ai server configuration with SSL fixes
-cat > "$PROXY_CONFIG" << EOF
-# ${TARGET_DOMAIN} Proxy Configuration
-# This file contains only the ${TARGET_DOMAIN} proxy settings
+cat > "$PROXY_CONFIG" << 'EOF'
+# Dynamic Proxy Configuration
+# This file contains proxy settings
 
 # Rate limiting for security
 limit_req_zone \$binary_remote_addr zone=krea_limit:10m rate=10r/s;
 
 server {
     listen 80;
-    server_name ${PROXY_DOMAIN};
+    server_name PROXY_DOMAIN_PLACEHOLDER;
     
     # Redirect HTTP to HTTPS
     return 301 https://\$server_name\$request_uri;
@@ -172,15 +172,15 @@ server {
 
 server {
     listen 443 ssl http2;
-    server_name ${PROXY_DOMAIN};
+    server_name PROXY_DOMAIN_PLACEHOLDER;
 
     # Set variables for Lua scripts
-    set \$target_domain ${TARGET_DOMAIN};
-    set \$proxy_domain ${PROXY_DOMAIN};
+    set \$target_domain TARGET_DOMAIN_PLACEHOLDER;
+    set \$proxy_domain PROXY_DOMAIN_PLACEHOLDER;
 
     # SSL Configuration - Update paths if needed
-    ssl_certificate /etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${PROXY_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/PROXY_DOMAIN_PLACEHOLDER/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/PROXY_DOMAIN_PLACEHOLDER/privkey.pem;
     
     # Modern SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -222,17 +222,17 @@ server {
         limit_req zone=krea_limit burst=20 nodelay;
         
         # Proxy settings with fallback
-        proxy_pass https://${TARGET_DOMAIN};
-        proxy_set_header Host ${TARGET_DOMAIN};
+        proxy_pass https://TARGET_DOMAIN_PLACEHOLDER;
+        proxy_set_header Host TARGET_DOMAIN_PLACEHOLDER;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host ${PROXY_DOMAIN};
-        proxy_set_header X-Forwarded-Server ${PROXY_DOMAIN};
+        proxy_set_header X-Forwarded-Host PROXY_DOMAIN_PLACEHOLDER;
+        proxy_set_header X-Forwarded-Server PROXY_DOMAIN_PLACEHOLDER;
 
         # WebSocket support
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
 
         # Timeouts
@@ -256,8 +256,8 @@ server {
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
         # Cookie domain rewriting (fallback)
-        proxy_cookie_domain ${TARGET_DOMAIN} ${PROXY_DOMAIN};
-        proxy_cookie_domain .${TARGET_DOMAIN} .${PROXY_DOMAIN};
+        proxy_cookie_domain TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain .TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
 
         # Lua header filter for Set-Cookie manipulation
         header_filter_by_lua_file /etc/nginx/lua/cookie_filter.lua;
@@ -280,7 +280,7 @@ server {
         add_header Access-Control-Max-Age "86400" always;
 
         # Handle preflight requests
-        if ($request_method = 'OPTIONS') {
+        if (\$request_method = 'OPTIONS') {
             add_header Access-Control-Allow-Origin "*";
             add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, HEAD";
             add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control";
@@ -299,6 +299,10 @@ server {
     }
 }
 EOF
+
+# Replace placeholders with actual values
+sed -i "s/TARGET_DOMAIN_PLACEHOLDER/${TARGET_DOMAIN}/g" "$PROXY_CONFIG"
+sed -i "s/PROXY_DOMAIN_PLACEHOLDER/${PROXY_DOMAIN}/g" "$PROXY_CONFIG"
 
 # Enable the site
 echo -e "${BLUE}🔗 Enabling ${PROXY_DOMAIN} site...${NC}"
