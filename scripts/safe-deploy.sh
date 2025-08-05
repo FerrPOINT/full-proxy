@@ -36,8 +36,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Check if we're in the project directory
-if [[ ! -f "nginx.conf" ]]; then
-    echo -e "${RED}❌ nginx.conf not found. Please run this script from the project directory.${NC}"
+if [[ ! -f "scripts/safe-deploy.sh" ]]; then
+    echo -e "${RED}❌ safe-deploy.sh not found. Please run this script from the project directory.${NC}"
     exit 1
 fi
 
