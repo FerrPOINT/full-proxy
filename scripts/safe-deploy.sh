@@ -206,13 +206,6 @@ if ! cat > "$PROXY_CONFIG" << 'EOF'
 # Rate limiting for security
 limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=10r/s;
 
-# Global settings for large headers
-proxy_buffer_size 256k;
-proxy_buffers 8 512k;
-proxy_busy_buffers_size 512k;
-proxy_max_temp_file_size 0;
-proxy_temp_file_write_size 512k;
-
 server {
     listen 80;
     server_name PROXY_DOMAIN_PLACEHOLDER;
