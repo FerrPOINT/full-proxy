@@ -241,13 +241,6 @@ server {
     # ssl_trusted_certificate /etc/letsencrypt/live/PROXY_DOMAIN_PLACEHOLDER/chain.pem;
     resolver 8.8.8.8 8.8.4.4 valid=300s;
     resolver_timeout 5s;
-    
-    # Security headers
-    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options "ALLOWALL" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # Lua test endpoint
     location = /lua_test {
@@ -273,7 +266,7 @@ server {
         # Rate limiting
         limit_req zone=krea_limit burst=20 nodelay;
         
-        # Proxy settings with fallback
+        # Proxy settings with improved domain handling
         proxy_pass https://TARGET_DOMAIN_PLACEHOLDER;
         proxy_set_header Host TARGET_DOMAIN_PLACEHOLDER;
         proxy_set_header X-Real-IP $remote_addr;
@@ -310,6 +303,8 @@ server {
         # Cookie domain rewriting (fallback)
         proxy_cookie_domain TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
         proxy_cookie_domain .TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain www.TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain .www.TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
 
         # Lua header filter for Set-Cookie manipulation
         header_filter_by_lua_file /etc/nginx/lua/cookie_filter.lua;
@@ -330,6 +325,13 @@ server {
         add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control" always;
         add_header Access-Control-Allow-Credentials "true" always;
         add_header Access-Control-Max-Age "86400" always;
+
+        # Security headers
+        add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options "ALLOWALL" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
         # Handle preflight requests
         if ($request_method = 'OPTIONS') {
