@@ -175,8 +175,8 @@ server {
     server_name ${PROXY_DOMAIN};
 
     # Set variables for Lua scripts
-    set $target_domain "${TARGET_DOMAIN}";
-    set $proxy_domain "${PROXY_DOMAIN}";
+    set \$target_domain ${TARGET_DOMAIN};
+    set \$proxy_domain ${PROXY_DOMAIN};
 
     # SSL Configuration - Update paths if needed
     ssl_certificate /etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem;
