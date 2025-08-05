@@ -233,31 +233,24 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Buffer settings for performance - INCREASED FOR KREA.AI
+        # Basic buffer settings for HTTP
         proxy_buffering on;
-        proxy_buffer_size 256k;
-        proxy_buffers 8 512k;
-        proxy_busy_buffers_size 512k;
-        proxy_max_temp_file_size 0;
-        proxy_temp_file_write_size 512k;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
 
-        # Timeouts - INCREASED FOR KREA.AI
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
 
         # Disable compression for body filtering
         proxy_set_header Accept-Encoding "";
 
-        # SSL settings for upstream - FIXES SSL PROBLEMS
+        # SSL settings for upstream
         proxy_ssl_verify off;
         proxy_ssl_server_name on;
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
-        proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
-
-        # Additional headers for large responses
-        proxy_hide_header X-Powered-By;
-        proxy_hide_header Server;
 
         # Handle redirects properly
         proxy_intercept_errors on;
@@ -381,9 +374,11 @@ server {
 
         # Buffer settings for performance
         proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-        proxy_busy_buffers_size 8k;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_max_temp_file_size 0;
+        proxy_temp_file_write_size 256k;
 
         # Disable compression for body filtering
         proxy_set_header Accept-Encoding "";
@@ -393,16 +388,6 @@ server {
         proxy_ssl_server_name on;
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
-
-        # Fix for "upstream sent too big header" error
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
-        proxy_max_temp_file_size 0;
-        proxy_temp_file_write_size 256k;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
 
         # Handle redirects properly
         proxy_intercept_errors on;
