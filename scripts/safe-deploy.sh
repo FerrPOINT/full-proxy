@@ -6,6 +6,17 @@
 
 set -e
 
+# Load configuration if exists
+if [[ -f "config.env" ]]; then
+    source config.env
+else
+    # Default values
+    TARGET_DOMAIN=krea.ai
+    PROXY_DOMAIN=krea.acm-ai.ru
+    SSL_EMAIL=your-email@domain.com
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -30,20 +41,20 @@ if [[ ! -f "nginx.conf" ]]; then
     exit 1
 fi
 
-# Function to check if krea.ai is accessible
-check_krea_accessibility() {
-    echo -e "${BLUE}🔍 Checking krea.ai accessibility...${NC}"
-    if curl -I https://krea.ai &>/dev/null; then
-        echo -e "${GREEN}✅ krea.ai is accessible${NC}"
+# Function to check if target domain is accessible
+check_target_accessibility() {
+    echo -e "${BLUE}🔍 Checking ${TARGET_DOMAIN} accessibility...${NC}"
+    if curl -I https://${TARGET_DOMAIN} &>/dev/null; then
+        echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible${NC}"
         return 0
     else
-        echo -e "${RED}❌ krea.ai is not accessible${NC}"
+        echo -e "${RED}❌ ${TARGET_DOMAIN} is not accessible${NC}"
         echo -e "${YELLOW}⚠️  Trying HTTP fallback...${NC}"
-        if curl -I http://krea.ai &>/dev/null; then
-            echo -e "${GREEN}✅ krea.ai is accessible via HTTP${NC}"
+        if curl -I http://${TARGET_DOMAIN} &>/dev/null; then
+            echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible via HTTP${NC}"
             return 1
         else
-            echo -e "${RED}❌ krea.ai is not accessible at all${NC}"
+            echo -e "${RED}❌ ${TARGET_DOMAIN} is not accessible at all${NC}"
             return 2
         fi
     fi
@@ -115,9 +126,9 @@ else
     exit 1
 fi
 
-# Check krea.ai accessibility
-check_krea_accessibility
-KREA_ACCESSIBLE=$?
+# Check target domain accessibility
+check_target_accessibility
+TARGET_ACCESSIBLE=$?
 
 # Create directories for Krea.ai proxy
 echo -e "${BLUE}📁 Creating directories for Krea.ai proxy...${NC}"
@@ -140,32 +151,36 @@ remove_existing_krea_config
 # Create Krea.ai specific configuration
 echo -e "${BLUE}📝 Creating Krea.ai configuration...${NC}"
 
-# Extract Krea.ai server block from nginx.conf
-KREA_CONFIG="/etc/nginx/sites-available/krea.acm-ai.ru"
+# Extract proxy server block from nginx.conf
+PROXY_CONFIG="/etc/nginx/sites-available/${PROXY_DOMAIN}"
 
 # Create the Krea.ai server configuration with SSL fixes
-cat > "$KREA_CONFIG" << 'EOF'
-# Krea.ai Proxy Configuration
-# This file contains only the Krea.ai proxy settings
+cat > "$PROXY_CONFIG" << EOF
+# ${TARGET_DOMAIN} Proxy Configuration
+# This file contains only the ${TARGET_DOMAIN} proxy settings
 
 # Rate limiting for security
-limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=10r/s;
+limit_req_zone \$binary_remote_addr zone=krea_limit:10m rate=10r/s;
 
 server {
     listen 80;
-    server_name krea.acm-ai.ru;
+    server_name ${PROXY_DOMAIN};
     
     # Redirect HTTP to HTTPS
-    return 301 https://$server_name$request_uri;
+    return 301 https://\$server_name\$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name krea.acm-ai.ru;
+    server_name ${PROXY_DOMAIN};
+
+    # Set variables for Lua scripts
+    set $target_domain "${TARGET_DOMAIN}";
+    set $proxy_domain "${PROXY_DOMAIN}";
 
     # SSL Configuration - Update paths if needed
-    ssl_certificate /etc/letsencrypt/live/krea.acm-ai.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/krea.acm-ai.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${PROXY_DOMAIN}/privkey.pem;
     
     # Modern SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -207,13 +222,13 @@ server {
         limit_req zone=krea_limit burst=20 nodelay;
         
         # Proxy settings with fallback
-        proxy_pass https://krea.ai;
-        proxy_set_header Host krea.ai;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host krea.acm-ai.ru;
-        proxy_set_header X-Forwarded-Server krea.acm-ai.ru;
+        proxy_pass https://${TARGET_DOMAIN};
+        proxy_set_header Host ${TARGET_DOMAIN};
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host ${PROXY_DOMAIN};
+        proxy_set_header X-Forwarded-Server ${PROXY_DOMAIN};
 
         # WebSocket support
         proxy_http_version 1.1;
@@ -241,8 +256,8 @@ server {
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
         # Cookie domain rewriting (fallback)
-        proxy_cookie_domain krea.ai krea.acm-ai.ru;
-        proxy_cookie_domain .krea.ai .krea.acm-ai.ru;
+        proxy_cookie_domain ${TARGET_DOMAIN} ${PROXY_DOMAIN};
+        proxy_cookie_domain .${TARGET_DOMAIN} .${PROXY_DOMAIN};
 
         # Lua header filter for Set-Cookie manipulation
         header_filter_by_lua_file /etc/nginx/lua/cookie_filter.lua;
@@ -286,11 +301,11 @@ server {
 EOF
 
 # Enable the site
-echo -e "${BLUE}🔗 Enabling Krea.ai site...${NC}"
-ln -sf "$KREA_CONFIG" /etc/nginx/sites-enabled/
+echo -e "${BLUE}🔗 Enabling ${PROXY_DOMAIN} site...${NC}"
+ln -sf "$PROXY_CONFIG" /etc/nginx/sites-enabled/
 
 # Verify the symlink was created
-if [[ -L "/etc/nginx/sites-enabled/krea.acm-ai.ru" ]]; then
+if [[ -L "/etc/nginx/sites-enabled/${PROXY_DOMAIN}" ]]; then
     echo -e "${GREEN}✅ Symlink created successfully${NC}"
 else
     echo -e "${RED}❌ Failed to create symlink${NC}"
@@ -300,13 +315,13 @@ fi
 # SSL certificate check
 echo -e "${BLUE}🔒 Checking SSL certificates...${NC}"
 
-if [[ -f "/etc/letsencrypt/live/krea.acm-ai.ru/fullchain.pem" ]]; then
+if [[ -f "/etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem" ]]; then
     echo -e "${GREEN}✅ SSL certificates found${NC}"
 else
-    echo -e "${YELLOW}⚠️  SSL certificates not found for krea.acm-ai.ru${NC}"
-    echo -e "${YELLOW}⚠️  Please install certificates or update paths in $KREA_CONFIG${NC}"
+    echo -e "${YELLOW}⚠️  SSL certificates not found for ${PROXY_DOMAIN}${NC}"
+    echo -e "${YELLOW}⚠️  Please install certificates or update paths in $PROXY_CONFIG${NC}"
     echo "Current paths in configuration:"
-    grep -n "ssl_certificate" "$KREA_CONFIG"
+    grep -n "ssl_certificate" "$PROXY_CONFIG"
 fi
 
 # Test configuration
@@ -324,12 +339,27 @@ fi
 echo -e "${BLUE}🔄 Reloading NGINX configuration...${NC}"
 systemctl reload nginx
 
+# If reload fails, try restart
+if ! systemctl is-active --quiet nginx; then
+    echo -e "${YELLOW}⚠️  Reload failed, trying restart...${NC}"
+    systemctl restart nginx
+fi
+
 # Wait for reload
 sleep 3
 
 # Check service status
 if systemctl is-active --quiet nginx; then
     echo -e "${GREEN}✅ NGINX is running successfully${NC}"
+    
+    # Verify configuration is loaded
+    if nginx -T | grep -q "${PROXY_DOMAIN}"; then
+        echo -e "${GREEN}✅ ${PROXY_DOMAIN} configuration is loaded${NC}"
+    else
+        echo -e "${RED}❌ ${PROXY_DOMAIN} configuration not found in NGINX${NC}"
+        echo "Current server blocks:"
+        nginx -T | grep "server_name" | head -10
+    fi
 else
     echo -e "${RED}❌ NGINX failed to reload${NC}"
     systemctl status nginx
@@ -342,7 +372,7 @@ echo -e "${BLUE}🧪 Comprehensive testing...${NC}"
 
 # Test Lua functionality
 echo -e "${BLUE}🔍 Testing Lua functionality...${NC}"
-if curl -H "Host: krea.acm-ai.ru" http://localhost/lua_test &>/dev/null; then
+if curl -H "Host: ${PROXY_DOMAIN}" http://localhost/lua_test &>/dev/null; then
     echo -e "${GREEN}✅ Lua test passed${NC}"
 else
     echo -e "${YELLOW}⚠️  Lua test failed (checking logs)${NC}"
@@ -351,29 +381,30 @@ fi
 
 # Test proxy functionality
 echo -e "${BLUE}🔍 Testing proxy functionality...${NC}"
-PROXY_RESPONSE=$(curl -H "Host: krea.acm-ai.ru" http://localhost/ -I 2>/dev/null | head -1)
+PROXY_RESPONSE=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | head -1)
 if [[ "$PROXY_RESPONSE" == *"200"* ]] || [[ "$PROXY_RESPONSE" == *"301"* ]] || [[ "$PROXY_RESPONSE" == *"302"* ]]; then
     echo -e "${GREEN}✅ Proxy test passed${NC}"
 else
     echo -e "${YELLOW}⚠️  Proxy test failed (response: $PROXY_RESPONSE)${NC}"
-    echo "Testing krea.ai accessibility..."
-    if curl -I https://krea.ai &>/dev/null; then
-        echo -e "${GREEN}✅ krea.ai is accessible${NC}"
-        echo -e "${YELLOW}⚠️  Checking NGINX configuration for krea.acm-ai.ru...${NC}"
+    echo "Testing ${TARGET_DOMAIN} accessibility..."
+    if curl -I https://${TARGET_DOMAIN} &>/dev/null; then
+        echo -e "${GREEN}✅ ${TARGET_DOMAIN} is accessible${NC}"
+        echo -e "${YELLOW}⚠️  Checking NGINX configuration for ${PROXY_DOMAIN}...${NC}"
         echo "Current server blocks:"
-        nginx -T | grep -A 5 -B 5 "krea.acm-ai.ru" || echo "No krea.acm-ai.ru configuration found"
+        nginx -T | grep -A 5 -B 5 "${PROXY_DOMAIN}" || echo "No ${PROXY_DOMAIN} configuration found"
     else
-        echo -e "${RED}❌ krea.ai is not accessible${NC}"
+        echo -e "${RED}❌ ${TARGET_DOMAIN} is not accessible${NC}"
     fi
 fi
 
 # Test SSL certificate
-if [[ -f "/etc/letsencrypt/live/krea.acm-ai.ru/fullchain.pem" ]]; then
+if [[ -f "/etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem" ]]; then
     echo -e "${GREEN}✅ SSL certificates found${NC}"
 else
     echo -e "${YELLOW}⚠️  SSL certificates not found${NC}"
-    echo "To install SSL certificates, run:"
-    echo "sudo certbot --nginx -d krea.acm-ai.ru --non-interactive --agree-tos --email admin@acm-ai.ru"
+    echo "To install SSL certificates (Let's Encrypt), run:"
+echo "sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
+echo "Note: Email is only used for SSL certificate notifications"
 fi
 
 # Test rate limiting configuration
@@ -386,7 +417,7 @@ fi
 
 # Test security headers
 echo -e "${BLUE}🔍 Testing security headers...${NC}"
-SECURITY_HEADERS=$(curl -H "Host: krea.acm-ai.ru" http://localhost/ -I 2>/dev/null | grep -E "(X-Frame-Options|Strict-Transport-Security)" | wc -l)
+SECURITY_HEADERS=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | grep -E "(X-Frame-Options|Strict-Transport-Security)" | wc -l)
 if [[ "$SECURITY_HEADERS" -ge 1 ]]; then
     echo -e "${GREEN}✅ Security headers configured${NC}"
 else
@@ -400,7 +431,7 @@ echo ""
 echo -e "${BLUE}📋 What was done:${NC}"
 echo "✅ Existing NGINX configuration preserved"
 echo "✅ Backup created in: $BACKUP_DIR"
-echo "✅ Krea.ai proxy added as separate site"
+echo "✅ ${PROXY_DOMAIN} proxy added as separate site"
 echo "✅ Lua scripts installed with professional optimizations"
 echo "✅ Configuration tested and reloaded"
 echo "✅ SSL problems automatically fixed"
@@ -409,9 +440,9 @@ echo "✅ Security headers added"
 echo "✅ Comprehensive testing performed"
 echo ""
 echo -e "${BLUE}📋 Next steps:${NC}"
-echo "1. Configure DNS: krea.acm-ai.ru → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
-echo "2. Test the proxy: curl -I https://krea.acm-ai.ru/"
-echo "3. Check test page: https://krea.acm-ai.ru/krea-test.html"
+echo "1. Configure DNS: ${PROXY_DOMAIN} → ${SERVER_IP}"
+echo "2. Test the proxy: curl -I https://${PROXY_DOMAIN}/"
+echo "3. Check test page: https://${PROXY_DOMAIN}/krea-test.html"
 echo ""
 echo -e "${BLUE}🔧 Useful commands:${NC}"
 echo "  View logs:     tail -f /var/log/nginx/error.log"
@@ -420,6 +451,7 @@ echo "  Status:        systemctl status nginx"
 echo "  Backup:        $BACKUP_DIR"
 echo ""
 echo -e "${YELLOW}⚠️  If SSL certificates are missing:${NC}"
-echo "  sudo certbot --nginx -d krea.acm-ai.ru --non-interactive --agree-tos --email admin@acm-ai.ru"
+echo "  sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
+echo "  # Email is only for SSL certificate notifications"
 echo ""
 echo -e "${GREEN}✅ Your existing sites are safe and running!${NC}" 

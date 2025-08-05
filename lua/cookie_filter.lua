@@ -1,20 +1,24 @@
--- Cookie Filter for Krea.ai Proxy
--- Rewrites Set-Cookie domain from krea.ai to krea.acm-ai.ru
+-- Cookie Filter for Dynamic Proxy
+-- Rewrites Set-Cookie domain from target to proxy domain
 -- Professional implementation with error handling and optimization
 
 local ngx = ngx
 local string = string
 
+-- Get domains from NGINX variables (set in nginx config)
+local target_domain = ngx.var.target_domain or "krea.ai"
+local proxy_domain = ngx.var.proxy_domain or "krea.acm-ai.ru"
+
 -- Pre-compiled patterns for better performance
 local COOKIE_PATTERNS = {
-    -- Domain=krea.ai -> Domain=krea.acm-ai.ru
-    {pattern = "Domain=krea%.ai", replacement = "Domain=krea.acm-ai.ru"},
-    -- Domain=.krea.ai -> Domain=krea.acm-ai.ru  
-    {pattern = "Domain=%.krea%.ai", replacement = "Domain=krea.acm-ai.ru"},
-    -- Domain=www.krea.ai -> Domain=krea.acm-ai.ru
-    {pattern = "Domain=www%.krea%.ai", replacement = "Domain=krea.acm-ai.ru"},
-    -- Domain=php.krea.ai -> Domain=krea.acm-ai.ru
-    {pattern = "Domain=php%.krea%.ai", replacement = "Domain=krea.acm-ai.ru"}
+    -- Domain=target -> Domain=proxy
+    {pattern = "Domain=" .. target_domain:gsub("%.", "%%."), replacement = "Domain=" .. proxy_domain},
+    -- Domain=.target -> Domain=proxy
+    {pattern = "Domain=%." .. target_domain:gsub("%.", "%%."), replacement = "Domain=" .. proxy_domain},
+    -- Domain=www.target -> Domain=proxy
+    {pattern = "Domain=www%." .. target_domain:gsub("%.", "%%."), replacement = "Domain=" .. proxy_domain},
+    -- Domain=php.target -> Domain=proxy
+    {pattern = "Domain=php%." .. target_domain:gsub("%.", "%%."), replacement = "Domain=" .. proxy_domain}
 }
 
 -- Optimized cookie domain rewriting function

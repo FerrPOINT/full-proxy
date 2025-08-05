@@ -1,40 +1,48 @@
--- Body Filter for Krea.ai Proxy
--- Replaces all krea.ai URLs with krea.acm-ai.ru in response body
+-- Body Filter for Dynamic Proxy
+-- Replaces all target URLs with proxy domain in response body
 -- Professional implementation with error handling and optimization
 
 local ngx = ngx
 local string = string
 
+-- Get domains from NGINX variables (set in nginx config)
+local target_domain = ngx.var.target_domain or "krea.ai"
+local proxy_domain = ngx.var.proxy_domain or "krea.acm-ai.ru"
+
+-- Escape dots for regex patterns
+local target_escaped = target_domain:gsub("%.", "%%.")
+local proxy_escaped = proxy_domain:gsub("%.", "%%.")
+
 -- Pre-compiled URL replacement patterns for better performance
 local URL_PATTERNS = {
     -- Full URLs with protocol (highest priority)
-    {pattern = "https://krea%.ai", replacement = "https://krea.acm-ai.ru"},
-    {pattern = "https://www%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
-    {pattern = "https://php%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
-    {pattern = "http://krea%.ai", replacement = "https://krea.acm-ai.ru"},
-    {pattern = "http://www%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
-    {pattern = "http://php%.krea%.ai", replacement = "https://krea.acm-ai.ru"},
+    {pattern = "https://" .. target_escaped, replacement = "https://" .. proxy_domain},
+    {pattern = "https://www%." .. target_escaped, replacement = "https://" .. proxy_domain},
+    {pattern = "https://php%." .. target_escaped, replacement = "https://" .. proxy_domain},
+    {pattern = "http://" .. target_escaped, replacement = "https://" .. proxy_domain},
+    {pattern = "http://www%." .. target_escaped, replacement = "https://" .. proxy_domain},
+    {pattern = "http://php%." .. target_escaped, replacement = "https://" .. proxy_domain},
     
     -- URLs without protocol
-    {pattern = "//krea%.ai", replacement = "//krea.acm-ai.ru"},
-    {pattern = "//www%.krea%.ai", replacement = "//krea.acm-ai.ru"},
-    {pattern = "//php%.krea%.ai", replacement = "//krea.acm-ai.ru"},
+    {pattern = "//" .. target_escaped, replacement = "//" .. proxy_domain},
+    {pattern = "//www%." .. target_escaped, replacement = "//" .. proxy_domain},
+    {pattern = "//php%." .. target_escaped, replacement = "//" .. proxy_domain},
     
     -- WebSocket URLs
-    {pattern = "wss://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
-    {pattern = "ws://krea%.ai", replacement = "wss://krea.acm-ai.ru"},
+    {pattern = "wss://" .. target_escaped, replacement = "wss://" .. proxy_domain},
+    {pattern = "ws://" .. target_escaped, replacement = "wss://" .. proxy_domain},
     
     -- JSON patterns
-    {pattern = '"domain":%s*"krea%.ai"', replacement = '"domain": "krea.acm-ai.ru"'},
-    {pattern = '"url":%s*"https://krea%.ai', replacement = '"url": "https://krea.acm-ai.ru'},
-    {pattern = '"origin":%s*"https://krea%.ai', replacement = '"origin": "https://krea.acm-ai.ru'},
+    {pattern = '"domain":%s*"' .. target_escaped .. '"', replacement = '"domain": "' .. proxy_domain .. '"'},
+    {pattern = '"url":%s*"https://' .. target_escaped, replacement = '"url": "https://' .. proxy_domain},
+    {pattern = '"origin":%s*"https://' .. target_escaped, replacement = '"origin": "https://' .. proxy_domain .. '"'},
     
     -- Bare domain names (in quotes or as values)
-    {pattern = '"krea%.ai"', replacement = '"krea.acm-ai.ru"'},
-    {pattern = "'krea%.ai'", replacement = "'krea.acm-ai.ru'"},
+    {pattern = '"' .. target_escaped .. '"', replacement = '"' .. proxy_domain .. '"'},
+    {pattern = "'" .. target_escaped .. "'", replacement = "'" .. proxy_domain .. "'"},
     
     -- Generic domain replacement (lowest priority)
-    {pattern = "krea%.ai", replacement = "krea.acm-ai.ru"},
+    {pattern = target_escaped, replacement = proxy_domain},
 }
 
 -- Content types that should be processed
@@ -104,34 +112,27 @@ local function filter_body()
         end
         
         if chunk then
-            -- Accumulate chunks
             ngx.ctx.response_buffer = buffer .. chunk
         end
         
-        -- Process accumulated buffer on EOF or when buffer is large enough
         if eof or #ngx.ctx.response_buffer > 8192 then
             local content_type = ngx.header.content_type or ""
             
-            -- Only process text-based content types
             if should_process_content_type(content_type) then
                 local processed = replace_urls_in_text(ngx.ctx.response_buffer)
                 ngx.arg[1] = processed
             else
-                -- For non-text content, output as-is
                 ngx.arg[1] = ngx.ctx.response_buffer
             end
             
-            -- Clear buffer
             ngx.ctx.response_buffer = ""
         else
-            -- Don't output anything yet, just accumulate
             ngx.arg[1] = nil
         end
     end)
     
     if not success then
         ngx.log(ngx.ERR, "Error in body filter: ", err)
-        -- On error, pass through original content
         ngx.arg[1] = ngx.arg[1]
     end
 end
