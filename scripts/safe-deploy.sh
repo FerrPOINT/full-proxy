@@ -301,7 +301,6 @@ server {
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
         # Handle redirects properly
-        proxy_redirect off;
         proxy_intercept_errors on;
         
         # Follow redirects and rewrite them
@@ -326,7 +325,6 @@ server {
         proxy_hide_header Content-Length;
         
         # Error handling
-        proxy_intercept_errors on;
         error_page 403 404 500 502 503 504 = @fallback;
 
         # CORS headers for iframe support
