@@ -240,16 +240,18 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-
         # Buffer settings for performance - INCREASED FOR KREA.AI
         proxy_buffering on;
         proxy_buffer_size 256k;
         proxy_buffers 8 512k;
         proxy_busy_buffers_size 512k;
+        proxy_max_temp_file_size 0;
+        proxy_temp_file_write_size 512k;
+
+        # Timeouts - INCREASED FOR KREA.AI
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
 
         # Disable compression for body filtering
         proxy_set_header Accept-Encoding "";
@@ -260,13 +262,6 @@ server {
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
-        # Fix for "upstream sent too big header" error - INCREASED LIMITS
-        proxy_max_temp_file_size 0;
-        proxy_temp_file_write_size 512k;
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
-        
         # Additional headers for large responses
         proxy_hide_header X-Powered-By;
         proxy_hide_header Server;
