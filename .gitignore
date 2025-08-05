@@ -1,37 +1,50 @@
-# SSL certificates
-ssl/
-*.pem
-*.key
-*.crt
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-
-# Environment variables
-.env
-.env.local
-.env.production
-
-# Docker
-.dockerignore
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Logs
+*.log
+logs/
 
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+
+# NGINX configs
+nginx.conf.backup
+sites-enabled/
+sites-available/
+
+# Lua cache
+*.lua~
+
+# Backup directories
+backup_*/
+*.backup/
+
+# Test files
+test_*
+*.test
+
+# Environment files
+.env
+.env.local
+.env.production
 
 # Node modules (if any)
 node_modules/
@@ -39,13 +52,27 @@ node_modules/
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
 
-# Certbot
-.well-known/
+# Compiled files
+*.o
+*.so
+*.dll
+*.exe
 
-# Nginx cache
-/var/cache/nginx/
+# Archive files
+*.tar.gz
+*.zip
+*.rar
 
-# System files
-*.pid
-*.lock 
+# Documentation builds
+docs/_build/
+site/
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Profiling data
+*.prof
+*.out 
