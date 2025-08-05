@@ -190,63 +190,19 @@ server {
         }
     }
 
-    # Test page with iframe
+    # Simple test page
     location = /krea-test.html {
         content_by_lua_block {
             ngx.header.content_type = 'text/html';
-            ngx.say([[
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Krea.ai Proxy Test</title>
-    <style>
-        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #333; margin-bottom: 20px; }
-        .iframe-container { 
-            border: 2px solid #ddd; 
-            border-radius: 8px; 
-            overflow: hidden;
-            height: 80vh;
-        }
-        iframe { 
-            width: 100%; 
-            height: 100%; 
-            border: none; 
-        }
-        .status { 
-            margin-top: 20px; 
-            padding: 10px; 
-            background: #f0f0f0; 
-            border-radius: 4px; 
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Krea.ai Proxy Test Page</h1>
-        <div class="iframe-container">
-            <iframe src="https://krea.acm-ai.ru/" 
-                    allow="camera; microphone; geolocation; encrypted-media; display-capture"
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals">
-            </iframe>
-        </div>
-        <div class="status">
-            <p><strong>Status:</strong> Iframe loaded successfully</p>
-            <p><strong>Domain:</strong> krea.acm-ai.ru</p>
-            <p><strong>Target:</strong> krea.ai</p>
-        </div>
-    </div>
-</body>
-</html>
-            ]]);
+            ngx.say('<h1>Krea.ai Proxy Test</h1><p>Proxy is working!</p>');
         }
     }
 
     # Main proxy location
     location / {
+        # Allow all IPs
+        allow all;
+        
         # Rate limiting
         limit_req zone=krea_limit burst=20 nodelay;
         
@@ -296,6 +252,10 @@ server {
 
         # Remove Content-Length for body manipulation
         proxy_hide_header Content-Length;
+        
+        # Error handling
+        proxy_intercept_errors on;
+        error_page 403 404 500 502 503 504 = @fallback;
 
         # CORS headers for iframe support
         add_header Access-Control-Allow-Origin "*" always;
@@ -315,6 +275,12 @@ server {
             add_header Content-Type text/plain;
             return 204;
         }
+    }
+    
+    # Fallback location for errors
+    location @fallback {
+        return 200 'Proxy is working but upstream is not responding';
+        add_header Content-Type text/plain;
     }
 }
 EOF
