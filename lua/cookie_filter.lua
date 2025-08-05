@@ -77,6 +77,11 @@ local function rewrite_location()
         return
     end
     
+    -- Don't rewrite if it's already pointing to our proxy domain
+    if location:find(proxy_domain) then
+        return
+    end
+    
     local original_location = location
     for _, pattern_data in ipairs(LOCATION_PATTERNS) do
         location = location:gsub(pattern_data.pattern, pattern_data.replacement)

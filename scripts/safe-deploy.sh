@@ -303,12 +303,6 @@ server {
         # Handle redirects properly
         proxy_intercept_errors on;
         
-        # Follow redirects and rewrite them
-        proxy_redirect https://TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
-        proxy_redirect https://www.TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
-        proxy_redirect http://TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
-        proxy_redirect http://www.TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
-
         # Cookie domain rewriting (fallback)
         proxy_cookie_domain TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
         proxy_cookie_domain .TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
