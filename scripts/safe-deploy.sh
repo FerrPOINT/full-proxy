@@ -489,11 +489,20 @@ fi
 
 # Test security headers
 echo -e "${BLUE}🔍 Testing security headers...${NC}"
-SECURITY_HEADERS=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | grep -E "(X-Frame-Options|Strict-Transport-Security)" | wc -l)
-if [[ "$SECURITY_HEADERS" -ge 1 ]]; then
-    echo -e "${GREEN}✅ Security headers configured${NC}"
+if command -v curl &> /dev/null; then
+    # Test via HTTPS if possible, otherwise HTTP
+    if curl -I https://localhost/ -H "Host: ${PROXY_DOMAIN}" &>/dev/null; then
+        SECURITY_HEADERS=$(curl -H "Host: ${PROXY_DOMAIN}" https://localhost/ -I 2>/dev/null | grep -E "(X-Frame-Options|Strict-Transport-Security)" | wc -l)
+    else
+        SECURITY_HEADERS=$(curl -H "Host: ${PROXY_DOMAIN}" http://localhost/ -I 2>/dev/null | grep -E "(X-Frame-Options|Strict-Transport-Security)" | wc -l)
+    fi
+    if [[ "$SECURITY_HEADERS" -ge 1 ]]; then
+        echo -e "${GREEN}✅ Security headers configured${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Security headers not detected (this is normal for HTTP tests)${NC}"
+    fi
 else
-    echo -e "${YELLOW}⚠️  Security headers not detected${NC}"
+    echo -e "${YELLOW}⚠️  curl not found, skipping security headers test${NC}"
 fi
 
 # Final status
@@ -526,4 +535,17 @@ echo -e "${YELLOW}⚠️  If SSL certificates are missing:${NC}"
 echo "  sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
 echo "  # Email is only for SSL certificate notifications"
 echo ""
+# Final verification
+echo -e "${BLUE}🔍 Final verification...${NC}"
+if command -v curl &> /dev/null; then
+    echo -e "${BLUE}📋 Testing proxy with real domain...${NC}"
+    if curl -I https://${PROXY_DOMAIN}/ &>/dev/null; then
+        echo -e "${GREEN}✅ Proxy is accessible via HTTPS${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Proxy not accessible via HTTPS (DNS may not be configured yet)${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  curl not found, skipping final verification${NC}"
+fi
+
 echo -e "${GREEN}✅ Your existing sites are safe and running!${NC}" 
