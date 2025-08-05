@@ -234,6 +234,13 @@ server {
     ssl_session_timeout 10m;
     ssl_session_tickets off;
     
+    # OCSP Stapling for better performance and security
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    ssl_trusted_certificate /etc/letsencrypt/live/PROXY_DOMAIN_PLACEHOLDER/chain.pem;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+    
     # Security headers
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
     add_header X-Content-Type-Options nosniff always;
@@ -380,9 +387,24 @@ if [[ -f "/etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem" ]]; then
     echo -e "${GREEN}✅ SSL certificates found${NC}"
 else
     echo -e "${YELLOW}⚠️  SSL certificates not found for ${PROXY_DOMAIN}${NC}"
-    echo -e "${YELLOW}⚠️  Please install certificates or update paths in $PROXY_CONFIG${NC}"
-    echo "Current paths in configuration:"
-    grep -n "ssl_certificate" "$PROXY_CONFIG"
+    echo -e "${BLUE}📦 Attempting to install SSL certificates...${NC}"
+    
+    # Check if certbot is available
+    if command -v certbot &> /dev/null; then
+        echo -e "${BLUE}🔧 Installing SSL certificates with certbot...${NC}"
+        if certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL} --quiet; then
+            echo -e "${GREEN}✅ SSL certificates installed successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Failed to install SSL certificates automatically${NC}"
+            echo -e "${YELLOW}⚠️  Please install certificates manually or update paths in $PROXY_CONFIG${NC}"
+            echo "Manual installation command:"
+            echo "sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  certbot not found, please install certificates manually${NC}"
+        echo "Install certbot: sudo apt-get install certbot python3-certbot-nginx"
+        echo "Then run: sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
+    fi
 fi
 
 # Test configuration
@@ -472,11 +494,22 @@ fi
 # Test SSL certificate
 if [[ -f "/etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem" ]]; then
     echo -e "${GREEN}✅ SSL certificates found${NC}"
+    
+    # Test SSL configuration quality
+    if command -v openssl &> /dev/null; then
+        echo -e "${BLUE}🔍 Testing SSL configuration quality...${NC}"
+        SSL_TEST=$(echo | openssl s_client -servername ${PROXY_DOMAIN} -connect ${PROXY_DOMAIN}:443 2>/dev/null | openssl x509 -noout -text 2>/dev/null | grep -E "(TLSv1\.2|TLSv1\.3|ECDHE|AES256)" | wc -l)
+        if [[ "$SSL_TEST" -ge 3 ]]; then
+            echo -e "${GREEN}✅ SSL configuration is secure and modern${NC}"
+        else
+            echo -e "${YELLOW}⚠️  SSL configuration may need optimization${NC}"
+        fi
+    fi
 else
     echo -e "${YELLOW}⚠️  SSL certificates not found${NC}"
     echo "To install SSL certificates (Let's Encrypt), run:"
-echo "sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
-echo "Note: Email is only used for SSL certificate notifications"
+    echo "sudo certbot --nginx -d ${PROXY_DOMAIN} --non-interactive --agree-tos --email ${SSL_EMAIL}"
+    echo "Note: Email is only used for SSL certificate notifications"
 fi
 
 # Test rate limiting configuration
@@ -485,6 +518,14 @@ if nginx -T | grep -q "limit_req_zone.*krea_limit"; then
     echo -e "${GREEN}✅ Rate limiting configured${NC}"
 else
     echo -e "${YELLOW}⚠️  Rate limiting not detected${NC}"
+fi
+
+# Test HTTP/2 support
+echo -e "${BLUE}🔍 Testing HTTP/2 support...${NC}"
+if nginx -T | grep -q "listen.*443.*ssl.*http2"; then
+    echo -e "${GREEN}✅ HTTP/2 support configured${NC}"
+else
+    echo -e "${YELLOW}⚠️  HTTP/2 support not detected${NC}"
 fi
 
 # Test security headers
