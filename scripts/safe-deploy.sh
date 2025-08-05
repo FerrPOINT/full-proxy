@@ -203,8 +203,8 @@ if ! cat > "$PROXY_CONFIG" << 'EOF'
 # Dynamic Proxy Configuration
 # This file contains proxy settings
 
-# Rate limiting for security - INCREASED FOR KREA.AI
-limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=100r/s;
+# Rate limiting for security - MAXIMUM FOR KREA.AI
+limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=1000r/s;
 
 server {
     listen 80;

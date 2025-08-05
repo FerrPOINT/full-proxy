@@ -71,9 +71,9 @@ local URL_PATTERNS = {
     {pattern = '"base"%s*:%s*"https://' .. target_escaped, replacement = '"base": "https://' .. proxy_domain},
     
     -- www subdomain in JSON patterns
-    {pattern = '"url"%s*:%s*"https://www%." .. target_escaped, replacement = '"url": "https://' .. proxy_domain},
-    {pattern = '"api"%s*:%s*"https://www%." .. target_escaped, replacement = '"api": "https://' .. proxy_domain},
-    {pattern = '"base"%s*:%s*"https://www%." .. target_escaped, replacement = '"base": "https://' .. proxy_domain},
+    {pattern = '"url"%s*:%s*"https://www%.' .. target_escaped, replacement = '"url": "https://' .. proxy_domain},
+    {pattern = '"api"%s*:%s*"https://www%.' .. target_escaped, replacement = '"api": "https://' .. proxy_domain},
+    {pattern = '"base"%s*:%s*"https://www%.' .. target_escaped, replacement = '"base": "https://' .. proxy_domain},
     
     -- XML patterns
     {pattern = "href%s*=%s*['\"]https://" .. target_escaped, replacement = "href='" .. proxy_domain},
