@@ -206,6 +206,13 @@ if ! cat > "$PROXY_CONFIG" << 'EOF'
 # Rate limiting for security
 limit_req_zone $binary_remote_addr zone=krea_limit:10m rate=10r/s;
 
+# Global settings for large headers
+proxy_buffer_size 256k;
+proxy_buffers 8 512k;
+proxy_busy_buffers_size 512k;
+proxy_max_temp_file_size 0;
+proxy_temp_file_write_size 512k;
+
 server {
     listen 80;
     server_name PROXY_DOMAIN_PLACEHOLDER;
@@ -238,11 +245,11 @@ server {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
 
-        # Buffer settings for performance
+        # Buffer settings for performance - INCREASED FOR KREA.AI
         proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-        proxy_busy_buffers_size 8k;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
 
         # Disable compression for body filtering
         proxy_set_header Accept-Encoding "";
@@ -253,15 +260,16 @@ server {
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
-        # Fix for "upstream sent too big header" error
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
+        # Fix for "upstream sent too big header" error - INCREASED LIMITS
         proxy_max_temp_file_size 0;
-        proxy_temp_file_write_size 256k;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_temp_file_write_size 512k;
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+        
+        # Additional headers for large responses
+        proxy_hide_header X-Powered-By;
+        proxy_hide_header Server;
 
         # Handle redirects properly
         proxy_intercept_errors on;
