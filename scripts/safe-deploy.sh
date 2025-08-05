@@ -300,6 +300,16 @@ server {
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
         proxy_ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256;
 
+        # Handle redirects properly
+        proxy_redirect off;
+        proxy_intercept_errors on;
+        
+        # Follow redirects and rewrite them
+        proxy_redirect https://TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
+        proxy_redirect https://www.TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
+        proxy_redirect http://TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
+        proxy_redirect http://www.TARGET_DOMAIN_PLACEHOLDER/ https://PROXY_DOMAIN_PLACEHOLDER/;
+
         # Cookie domain rewriting (fallback)
         proxy_cookie_domain TARGET_DOMAIN_PLACEHOLDER PROXY_DOMAIN_PLACEHOLDER;
         proxy_cookie_domain .TARGET_DOMAIN_PLACEHOLDER .PROXY_DOMAIN_PLACEHOLDER;

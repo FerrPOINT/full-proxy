@@ -20,6 +20,14 @@ local COOKIE_PATTERNS = {
     {pattern = "Domain=%." .. target_domain:gsub("%.", "%%."), replacement = "Domain=" .. proxy_domain}
 }
 
+-- Location header patterns for redirects
+local LOCATION_PATTERNS = {
+    {pattern = "https://" .. target_domain:gsub("%.", "%%."), replacement = "https://" .. proxy_domain},
+    {pattern = "http://" .. target_domain:gsub("%.", "%%."), replacement = "https://" .. proxy_domain},
+    {pattern = "https://www%." .. target_domain:gsub("%.", "%%."), replacement = "https://" .. proxy_domain},
+    {pattern = "http://www%." .. target_domain:gsub("%.", "%%."), replacement = "https://" .. proxy_domain}
+}
+
 -- Function to rewrite Set-Cookie headers
 local function rewrite_cookies()
     local headers = ngx.resp.get_headers()
@@ -62,8 +70,29 @@ local function rewrite_cookies()
     end
 end
 
+-- Function to rewrite Location headers for redirects
+local function rewrite_location()
+    local location = ngx.header["Location"]
+    if not location then
+        return
+    end
+    
+    local original_location = location
+    for _, pattern_data in ipairs(LOCATION_PATTERNS) do
+        location = location:gsub(pattern_data.pattern, pattern_data.replacement)
+    end
+    
+    if location ~= original_location then
+        ngx.header["Location"] = location
+        ngx.log(ngx.INFO, "Location header rewritten: ", original_location, " -> ", location)
+    end
+end
+
 -- Main execution with error handling
-local ok, err = pcall(rewrite_cookies)
+local ok, err = pcall(function()
+    rewrite_cookies()
+    rewrite_location()
+end)
 if not ok then
     ngx.log(ngx.ERR, "Error in cookie filter: ", err)
 end 
