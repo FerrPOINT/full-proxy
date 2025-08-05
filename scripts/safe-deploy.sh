@@ -289,6 +289,14 @@ EOF
 echo -e "${BLUE}🔗 Enabling Krea.ai site...${NC}"
 ln -sf "$KREA_CONFIG" /etc/nginx/sites-enabled/
 
+# Verify the symlink was created
+if [[ -L "/etc/nginx/sites-enabled/krea.acm-ai.ru" ]]; then
+    echo -e "${GREEN}✅ Symlink created successfully${NC}"
+else
+    echo -e "${RED}❌ Failed to create symlink${NC}"
+    exit 1
+fi
+
 # SSL certificate check
 echo -e "${BLUE}🔒 Checking SSL certificates...${NC}"
 
@@ -351,6 +359,9 @@ else
     echo "Testing krea.ai accessibility..."
     if curl -I https://krea.ai &>/dev/null; then
         echo -e "${GREEN}✅ krea.ai is accessible${NC}"
+        echo -e "${YELLOW}⚠️  Checking NGINX configuration for krea.acm-ai.ru...${NC}"
+        echo "Current server blocks:"
+        nginx -T | grep -A 5 -B 5 "krea.acm-ai.ru" || echo "No krea.acm-ai.ru configuration found"
     else
         echo -e "${RED}❌ krea.ai is not accessible${NC}"
     fi
@@ -398,7 +409,7 @@ echo "✅ Security headers added"
 echo "✅ Comprehensive testing performed"
 echo ""
 echo -e "${BLUE}📋 Next steps:${NC}"
-echo "1. Configure DNS: krea.acm-ai.ru → $(curl -s ifconfig.me)"
+echo "1. Configure DNS: krea.acm-ai.ru → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
 echo "2. Test the proxy: curl -I https://krea.acm-ai.ru/"
 echo "3. Check test page: https://krea.acm-ai.ru/krea-test.html"
 echo ""
